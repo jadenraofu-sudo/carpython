@@ -44,11 +44,6 @@ def simulate(actionList):
                     nextStart = float(j[0])
                 scheduled_actions.append((startAt, j[1]))
 
-    # corners = np.array(((4, 1), (5, 3), (2, 2), (0, 0)))
-    # print("time: ", f"{(time.perf_counter() - start):.2f}"
-    #          " at {", f"{float(coord[0]):.2f}"
-    #          ", ", f"{float(coord[1]):.2f}", "}")
-
 
 def drive():
     print("hi")
