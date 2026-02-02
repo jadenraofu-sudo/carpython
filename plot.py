@@ -6,44 +6,16 @@ SEC_PER_STEP = 0.2
 STEP_SIZE = 1.0
 TURN_SPEED = 15.0  # degrees per second
 coord = np.array((0, 0))
-# direction is now stored as an angle in radians (0 = +x, pi = -x)
-direction = np.pi  # pointing left (-1, 0)
+direction = np.array((1, 0))
 
 
-def tankturn(newdir, turnspeed = TURN_SPEED):
-    global direction
-    newdir_norm = np.linalg.norm(newdir)
-    if newdir_norm < 1e-9:
-        return
-    desired = np.arctan2(newdir[1], newdir[0])
-    # smallest signed angle difference in [-pi, pi]
-    diff = (desired - direction + np.pi) % (2 * np.pi) - np.pi
-    step = np.deg2rad(turnspeed)
-    numseg = int(abs(diff) // step)
-    sign = np.sign(diff) if diff != 0 else 0
-    for i in range(numseg):
-        direction += sign * step
-        # normalize to [-pi, pi]
-        direction = (direction + np.pi) % (2 * np.pi) - np.pi
-        dx, dy = np.cos(direction), np.sin(direction)
-        if np.isfinite(dx) and np.isfinite(dy) and (abs(dx) + abs(dy) > 1e-12):
-            plt.quiver(coord[0], coord[1], dx, dy, pivot='mid', angles='xy')
-        plt.pause(SEC_PER_STEP)
-    # final small remaining rotation
-    rem = abs(diff) - numseg * step
-    if rem > 1e-9:
-        direction += sign * rem
-        direction = (direction + np.pi) % (2 * np.pi) - np.pi
-        dx, dy = np.cos(direction), np.sin(direction)
-        if np.isfinite(dx) and np.isfinite(dy) and (abs(dx) + abs(dy) > 1e-12):
-            plt.quiver(coord[0], coord[1], dx, dy, pivot='mid', angles='xy')
-        plt.pause(SEC_PER_STEP)
-    # snap to exact desired angle
-    direction = desired
+#def tankturn(newdir, turnspeed = TURN_SPEED):
+
 
 # draws an arc of radius r centered at (h, k) starting from angle start_ang
 # in the direction dir (1 for ccw, -1 for cw)
 def arc(r, h, k, start_ang, ang, dir):
+    global direction
     if dir > 0:
         theta = np.linspace(np.deg2rad(start_ang),
                             np.deg2rad(start_ang + ang), 300)
@@ -52,17 +24,13 @@ def arc(r, h, k, start_ang, ang, dir):
                             np.deg2rad(start_ang - ang), 300)
     x = h + r * np.cos(theta)
     y = k + r * np.sin(theta)
-    vec = np.array((-r * np.sin(theta[-1]), r * np.cos(theta[-1])))
-    den = np.linalg.norm(vec)
-    if den < 1e-9:
-        dx, dy = 0.0, 0.0
-    else:
-        ang = np.arctan2(vec[1], vec[0])
-        dx, dy = np.cos(ang), np.sin(ang)
+    #ang = np.arctan2(vec[1], vec[0])
+    # dx, dy = np.cos(ang), np.sin(ang)
+    direction = dir*np.array((-r * np.sin(theta[-1]), r * np.cos(theta[-1])))
+    dx, dy = direction
     if np.isfinite(dx) and np.isfinite(dy) and (abs(dx) + abs(dy) > 1e-12):
         plt.quiver(x[-1], y[-1], dx, dy, pivot='mid', angles='xy')
     plt.plot(x, y)
-    return [x[-1], y[-1]]
 
 
 # draws a semi circle between the points coord and (h, k).
@@ -102,7 +70,8 @@ def seg(h, k):
     y = np.array((coord[1], k))
     plt.plot(x, y)
     coord = np.array((h, k))
-    dx, dy = np.cos(direction), np.sin(direction)
+    rad = np.arctan2(direction[1], direction[0])
+    dx, dy = np.cos(rad), np.sin(rad)
     if np.isfinite(dx) and np.isfinite(dy) and (abs(dx) + abs(dy) > 1e-12):
         plt.quiver(coord[0], coord[1], dx, dy, pivot='mid', angles='xy')
 
@@ -112,19 +81,13 @@ def line(corners, step_size = STEP_SIZE):
     global coord
     global direction
     for [h, k] in corners:
-        newdir = np.array((h - coord[0], k - coord[1]))
-        newdir_norm = np.linalg.norm(newdir)
-        if newdir_norm < 1e-9:
-            # no movement needed
-            continue
-        tankturn(newdir)
         end = np.array((h, k))
         dist = np.linalg.norm(coord - end)
         if dist < 1e-9:
             continue
         vec = end - coord
-        # set global direction as angle
-        direction = np.arctan2(vec[1], vec[0])
+        # set global direction as degrees
+        direction = np.array((vec[0], vec[1]))
         v = vec / dist
         numseg = int(dist // step_size)
         points = [coord + i * step_size * v for i in range(numseg + 1)]
