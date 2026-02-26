@@ -1,16 +1,15 @@
 import matplotlib.pyplot as plt
-import numpy as np
 import time
 import sys
 from config import environment
-from plot import line, arc, semi, curvedquad
+from plot import line, arc, semi
 # if environment == "car":
 #     import Rpi.GPIO
 
 xbounds = [-5, 5]
 ybounds = [-5, 5]
-available_functions = ['line', 'arc', 'semi', 'curvedquad']
-immediate_functions = ['relativeTime', 'startQ', 'addpoints']
+available_functions = ['line', 'semi']
+immediate_functions = ['relativeTime', 'startQ', 'setpoints']
 scheduled_actions = []
 points = []
 starting = 0.0
@@ -50,9 +49,10 @@ def drive():
 
 
 # immediate functions
-def addpoints(pts):
-    points.append(pts)
-    print(f"@{time.time()-starting:.2f} added points")
+def setpoints(pts):
+    global points
+    points = pts
+    print(f"@{time.time()-starting:.2f} points set to {points}")
 
 
 def relativeTime(arg):
