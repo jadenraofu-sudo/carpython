@@ -1,33 +1,31 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from config import R, LX, LY
+from config import environment, R, LX, LY, SEC_PER_STEP
 
-SEC_PER_STEP = 0.1
-# STEP_SIZE = SEC_PER_STEP * V
-# TURN_STEP = 30.0  # degrees per second
+
 coord = np.array((0, 0))
 # `direction` is an angle in radians; 0 points to the right (positive x)
 direction = 0.0
 wheels = np.array((0, 0, 0, 0))
 
-xbounds = [-5, 5]
-ybounds = [-5, 5]
+if environment == 'mac':
+    xbounds = [-5, 5]
+    ybounds = [-5, 5]
 
-plt.style.use('_mpl-gallery-nogrid')
-fig, axd = plt.subplot_mosaic(
-    [
-        ['left', 'left', 'upper left', 'upper right'],
-        ['left', 'left', 'lower left', 'lower right'],
-    ],
-    figsize=(8, 4),
-    layout="constrained",
-)
-axd['left'].set_xlim(xbounds[0], xbounds[1])
-axd['left'].set_ylim(ybounds[0], ybounds[1])
-axd['left'].plot(1, 1)
-fig.suptitle('robot path')
-
+    plt.style.use('_mpl-gallery-nogrid')
+    fig, axd = plt.subplot_mosaic(
+        [
+            ['left', 'left', 'upper left', 'upper right'],
+            ['left', 'left', 'lower left', 'lower right'],
+        ],
+        figsize=(8, 4),
+        layout="constrained",
+    )
+    axd['left'].set_xlim(xbounds[0], xbounds[1])
+    axd['left'].set_ylim(ybounds[0], ybounds[1])
+    axd['left'].plot(1, 1)
+    fig.suptitle('robot path')
 
 def wheelspeeds(v, w):
     wfl = 1 / R * (v[0] - v[1] - w * (LX + LY))
@@ -73,7 +71,7 @@ def plot_wheels(v_world, w_deg_per_s):
         # map robot-frame (x, y) -> plot-frame (-y, x) so forward (1, 0) is up
         plot_x, plot_y = -v_contact[1], v_contact[0]
         ax.quiver(0, 0, plot_x, plot_y, angles='xy', scale_units='xy',
-                  scale=1, color='tab:blue', pivot='mid')
+                scale=1, color='tab:blue', pivot='mid')
 
         # also show wheel spin magnitude (rad/s)
         ax.text(0.1, -1.2, f"{w_val:.2f} rad/s", fontsize=9)
@@ -100,22 +98,25 @@ def tankturn(newdir, w=30.0):
     angdiff = (ang2 - ang1) % 360
     if angdiff > 180:
         angdiff -= 360
+    print(f"it took {angdiff/w:.2f} seconds to turn {angdiff:.2f} degrees")
     numsteps = int(abs(angdiff) // (turnstep))
     angstep = (turnstep) * np.sign(angdiff)
     for i in range(numsteps):
         ang = ang1 + angstep * (i + 1)
         # set direction angle (radians) and draw via draw_arrow()
         direction = math.radians(ang)
-        draw_arrow()
-        plot_wheels([0, 0], w)
-        plt.pause(SEC_PER_STEP)
+        if environment == 'mac':
+            draw_arrow()
+            plot_wheels([0, 0], w)
+            plt.pause(SEC_PER_STEP)
     remaining = abs(angdiff) - numsteps * turnstep
     if remaining > 1e-9:
         # final partial-step: set direction and draw
         direction = math.radians(ang2)
-        draw_arrow()
-        plot_wheels([0, 0], w)
-        plt.pause(remaining / (turnstep) * SEC_PER_STEP)
+        if environment == 'mac':
+            draw_arrow()
+            plot_wheels([0, 0], w)
+            plt.pause(remaining / (turnstep) * SEC_PER_STEP)
     # store direction as an angle (radians)
     direction = math.radians(ang2)
 
@@ -139,7 +140,8 @@ def arc(r, h, k, start_ang, ang, dir, tangential):
     if tangential:
         direction = math.atan2(tdy, tdx)
     coord = np.array([x[-1], y[-1]])
-    axd['left'].plot(x, y)
+    if environment == 'mac':
+        axd['left'].plot(x, y)
     return np.array((tdx, tdy))
 
 
@@ -161,6 +163,7 @@ def semi(point, dir, v=1.0, w=0.0, align=True, tangential=True):
     centery = (coord[1] + k) / 2
     numseg = int(radius * np.pi // step_size)
     angchange = step_size / (radius * np.pi) * 180
+    print(f"it took {radius*np.pi/v:.2f} seconds to move {radius*np.pi:.2f} meters along the arc")
     for i in range(numseg):
         if dir > 0:
             unit_vec = arc(radius, centerx, centery,
@@ -171,9 +174,10 @@ def semi(point, dir, v=1.0, w=0.0, align=True, tangential=True):
                            (-1 * angchange) * i + start_ang,
                            angchange, dir, tangential)
         direction += math.radians(w) * SEC_PER_STEP
-        draw_arrow()
-        plot_wheels(unit_vec * v, w)
-        plt.pause(SEC_PER_STEP)
+        if environment == 'mac':
+            draw_arrow()
+            plot_wheels(unit_vec * v, w)
+            plt.pause(SEC_PER_STEP)
     lastang = 180 - angchange * numseg
     dist = radius * np.deg2rad(lastang)
     if dist > 1e-9:
@@ -186,16 +190,18 @@ def semi(point, dir, v=1.0, w=0.0, align=True, tangential=True):
                            start_ang - numseg * angchange,
                            lastang, dir, tangential)
         direction += math.radians(w) * dist / step_size * SEC_PER_STEP
-        draw_arrow()
-        plot_wheels(unit_vec * v, w)
-        plt.pause(dist / step_size * SEC_PER_STEP)
+        if environment == 'mac':
+            draw_arrow()
+            plot_wheels(unit_vec * v, w)
+            plt.pause(dist / step_size * SEC_PER_STEP)
     coord = np.array((h, k))
 
 
 # draws a segment between coord and (h, k)
 def seg(h, k):
     global coord
-    axd['left'].plot([coord[0], h], [coord[1], k])
+    if environment == 'mac':
+        axd['left'].plot([coord[0], h], [coord[1], k])
     coord = np.array((h, k))
 
 
@@ -211,11 +217,11 @@ def line(point, v=1.0, w=0.0, align=True):
     unit_vec = vec / dist
     if align:
         tankturn(unit_vec)
+    print(f"it took {dist/v:.2f} seconds to move {dist:.2f} meters along the line")
     numseg = int(dist // step_size)
     points = [coord + i * step_size * unit_vec for i in range(numseg + 1)]
     points.pop(0)
     # linear speed corresponding to step_size
-    speed = step_size / SEC_PER_STEP
     for [x, y] in points:
         seg(x, y)
         # update heading for this time step (direction is angle)
@@ -223,9 +229,10 @@ def line(point, v=1.0, w=0.0, align=True):
         rad += math.radians(w) * SEC_PER_STEP
         direction = rad
         # plot robot arrow and wheel states for this motion step
-        draw_arrow()
-        plot_wheels(unit_vec * speed, w)
-        plt.pause(SEC_PER_STEP)
+        if environment == 'mac':
+            draw_arrow()
+            plot_wheels(unit_vec * v, w)
+            plt.pause(SEC_PER_STEP)
     dist = np.linalg.norm(coord - end)
     if dist > 1e-9:
         seg(h, k)
@@ -234,8 +241,8 @@ def line(point, v=1.0, w=0.0, align=True):
         dt = dist/step_size * SEC_PER_STEP
         rad += math.radians(w) * dt
         direction = rad
-        draw_arrow()
-        # plot wheels for the remaining motion (use same speed)
-        plot_wheels(unit_vec * speed, w)
-        plt.pause(dt)
+        if environment == 'mac':
+            draw_arrow()
+            plot_wheels(unit_vec * v, w)
+            plt.pause(dt)
     coord = end

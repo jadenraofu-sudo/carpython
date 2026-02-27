@@ -2,12 +2,15 @@ import matplotlib.pyplot as plt
 import time
 import sys
 from config import environment
-from plot import line, arc, semi
-# if environment == "car":
-#     import Rpi.GPIO
+if environment == 'mac':
+    from plot import line, semi
+elif environment == 'car':
+    from moves import line, semi
+    import Rpi.GPIO
+else:
+    raise Exception("Invalid environment")
 
-xbounds = [-5, 5]
-ybounds = [-5, 5]
+
 available_functions = ['line', 'semi']
 immediate_functions = ['relativeTime', 'startQ', 'setpoints']
 scheduled_actions = []
@@ -18,15 +21,11 @@ started = False
 nextStart = 0.0
 
 
-def simulate(actionList):
+def parse(actionList):
     global nextStart
 
     startAt = 0
 
-    plt.plot()
-    plt.xlim(xbounds[0], xbounds[1])
-    plt.ylim(ybounds[0], ybounds[1])
-    plt.gca().set_aspect("equal")
     for i in actionList:
         print(i, end='')
         startAt = nextStart
@@ -105,12 +104,7 @@ def main():
 
     starting = time.time()
 
-    if environment == 'mac':
-        simulate(actionList)
-    elif environment == 'car':
-        drive(actionList)
-    else:
-        raise Exception("Invalid environment")
+    parse(actionList)
     print("input file commands added")
     time.sleep(5)  # to see if q started by immediate command
     if not started:
