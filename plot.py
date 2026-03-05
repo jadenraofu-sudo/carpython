@@ -2,37 +2,31 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from config import environment, R, LX, LY, SEC_PER_STEP
+from helper import linehelper, semihelper, tankturnhelper, wheelspeeds
 
 
-coord = np.array((0, 0))
+coord = np.array((0.0, 0.0))
 # `direction` is an angle in radians; 0 points to the right (positive x)
 direction = 0.0
 wheels = np.array((0, 0, 0, 0))
 
-if environment == 'mac':
-    xbounds = [-5, 5]
-    ybounds = [-5, 5]
+xbounds = [-5, 7]
+ybounds = [-5, 5]
 
-    plt.style.use('_mpl-gallery-nogrid')
-    fig, axd = plt.subplot_mosaic(
-        [
-            ['left', 'left', 'upper left', 'upper right'],
-            ['left', 'left', 'lower left', 'lower right'],
-        ],
-        figsize=(8, 4),
-        layout="constrained",
-    )
-    axd['left'].set_xlim(xbounds[0], xbounds[1])
-    axd['left'].set_ylim(ybounds[0], ybounds[1])
-    axd['left'].plot(1, 1)
-    fig.suptitle('robot path')
+plt.style.use('_mpl-gallery-nogrid')
+fig, axd = plt.subplot_mosaic(
+    [
+        ['left', 'left', 'upper left', 'upper right'],
+        ['left', 'left', 'lower left', 'lower right'],
+    ],
+    figsize=(8, 4),
+    layout="constrained",
+)
+axd['left'].set_xlim(xbounds[0], xbounds[1])
+axd['left'].set_ylim(ybounds[0], ybounds[1])
+axd['left'].plot(1, 1)
+fig.suptitle('robot path')
 
-def wheelspeeds(v, w):
-    wfl = 1 / R * (v[0] - v[1] - w * (LX + LY))
-    wfr = 1 / R * (v[0] + v[1] + w * (LX + LY))
-    wrl = 1 / R * (v[0] + v[1] - w * (LX + LY))
-    wrr = 1 / R * (v[0] - v[1] + w * (LX + LY))
-    return np.array((wfl, wfr, wrl, wrr))
 
 
 def plot_wheels(v_world, w_deg_per_s):
@@ -83,44 +77,6 @@ def draw_arrow():
     axd['left'].quiver(coord[0], coord[1], dx, dy, pivot='mid', angles='xy')
 
 
-def tankturn(newdir, w=30.0):
-    global direction
-    turnstep = w * SEC_PER_STEP
-    # ang1/ang2 in degrees for stepping;
-    # accept newdir as angle (degrees) or 2-vector
-    ang1 = math.degrees(float(direction))
-    # convert newdir to degrees from x-axis
-    # if it's a vector, otherwise treat as scalar
-    if hasattr(newdir, '__len__') and len(newdir) == 2:
-        ang2 = math.degrees(math.atan2(newdir[1], newdir[0]))
-    else:
-        ang2 = float(newdir)
-    angdiff = (ang2 - ang1) % 360
-    if angdiff > 180:
-        angdiff -= 360
-    print(f"it took {angdiff/w:.2f} seconds to turn {angdiff:.2f} degrees")
-    numsteps = int(abs(angdiff) // (turnstep))
-    angstep = (turnstep) * np.sign(angdiff)
-    for i in range(numsteps):
-        ang = ang1 + angstep * (i + 1)
-        # set direction angle (radians) and draw via draw_arrow()
-        direction = math.radians(ang)
-        if environment == 'mac':
-            draw_arrow()
-            plot_wheels([0, 0], w)
-            plt.pause(SEC_PER_STEP)
-    remaining = abs(angdiff) - numsteps * turnstep
-    if remaining > 1e-9:
-        # final partial-step: set direction and draw
-        direction = math.radians(ang2)
-        if environment == 'mac':
-            draw_arrow()
-            plot_wheels([0, 0], w)
-            plt.pause(remaining / (turnstep) * SEC_PER_STEP)
-    # store direction as an angle (radians)
-    direction = math.radians(ang2)
-
-
 # draws an arc of radius r centered at (h, k) starting from angle start_ang
 # in the direction dir (1 for ccw, -1 for cw)
 def arc(r, h, k, start_ang, ang, dir, tangential):
@@ -150,58 +106,44 @@ def arc(r, h, k, start_ang, ang, dir, tangential):
 def semi(point, dir, v=1.0, w=0.0, align=True, tangential=True):
     global coord
     global direction
+    point_arr = np.array(point)
     h, k = point
+    radius = np.linalg.norm(coord - point_arr) / 2
     if tangential:
-        w = 0.0
-    step_size = v * SEC_PER_STEP
-    start_ang = np.atan2(k - coord[1], h - coord[0]) * 180 / np.pi + 180
+        if dir > 0:
+            w = np.rad2deg(v/radius)
+        else:
+            w = -np.rad2deg(v/radius)
+    # Align to initial tangent direction if requested
     if align:
-        tankturn(dir * np.array((-np.sin(start_ang), np.cos(start_ang))))
-    end = np.array((h, k))
-    radius = np.linalg.norm(coord - end) / 2
-    centerx = (coord[0] + h) / 2
-    centery = (coord[1] + k) / 2
-    numseg = int(radius * np.pi // step_size)
-    angchange = step_size / (radius * np.pi) * 180
-    print(f"it took {radius*np.pi/v:.2f} seconds to move {radius*np.pi:.2f} meters along the arc")
-    for i in range(numseg):
-        if dir > 0:
-            unit_vec = arc(radius, centerx, centery,
-                           angchange * i + start_ang,
-                           angchange, dir, tangential)
-        else:
-            unit_vec = arc(radius, centerx, centery,
-                           (-1 * angchange) * i + start_ang,
-                           angchange, dir, tangential)
-        direction += math.radians(w) * SEC_PER_STEP
-        if environment == 'mac':
+        start_ang = (np.atan2(k - coord[1], h - coord[0]) +  np.pi)
+        new_heading = dir * np.array((-np.sin(start_ang), np.cos(start_ang)))
+        time_turn, dir_turn, ccw = tankturnhelper(
+            coord, direction, new_heading
+        )
+        for t, d in zip(time_turn, dir_turn):
+            direction = d
             draw_arrow()
-            plot_wheels(unit_vec * v, w)
-            plt.pause(SEC_PER_STEP)
-    lastang = 180 - angchange * numseg
-    dist = radius * np.deg2rad(lastang)
-    if dist > 1e-9:
-        if dir > 0:
-            unit_vec = arc(radius, centerx, centery,
-                           start_ang + numseg * angchange,
-                           lastang, dir, tangential)
-        else:
-            unit_vec = arc(radius, centerx, centery,
-                           start_ang - numseg * angchange,
-                           lastang, dir, tangential)
-        direction += math.radians(w) * dist / step_size * SEC_PER_STEP
-        if environment == 'mac':
-            draw_arrow()
-            plot_wheels(unit_vec * v, w)
-            plt.pause(dist / step_size * SEC_PER_STEP)
-    coord = np.array((h, k))
+            plot_wheels([0, 0], ccw * w)
+            plt.pause(t)
+
+    # Arc movement using semihelper
+    points, time, dirs, unit_vecs = semihelper(
+        coord, direction, point_arr, dir, v, w, tangential
+    )
+
+    for pts, t, d, uv in zip(points, time, dirs, unit_vecs.T):
+        simulate(uv * v, w, t)
+        print("distance to theoretical point: ", np.linalg.norm(pts - coord))
+        draw_arrow()
+        plot_wheels(uv * v, w)
+        plt.pause(t)
 
 
 # draws a segment between coord and (h, k)
 def seg(h, k):
     global coord
-    if environment == 'mac':
-        axd['left'].plot([coord[0], h], [coord[1], k])
+    axd['left'].plot([coord[0], h], [coord[1], k])
     coord = np.array((h, k))
 
 
@@ -209,40 +151,35 @@ def seg(h, k):
 def line(point, v=1.0, w=0.0, align=True):
     global direction
     global coord
-    h, k = point
-    step_size = v * SEC_PER_STEP
-    end = np.array((h, k))
-    dist = np.linalg.norm(coord - end)
-    vec = end - coord
-    unit_vec = vec / dist
+    unit_vec = point - coord
+    unit_vec = unit_vec / np.linalg.norm(unit_vec)
     if align:
-        tankturn(unit_vec)
-    print(f"it took {dist/v:.2f} seconds to move {dist:.2f} meters along the line")
-    numseg = int(dist // step_size)
-    points = [coord + i * step_size * unit_vec for i in range(numseg + 1)]
-    points.pop(0)
-    # linear speed corresponding to step_size
-    for [x, y] in points:
-        seg(x, y)
-        # update heading for this time step (direction is angle)
-        rad = float(direction)
-        rad += math.radians(w) * SEC_PER_STEP
-        direction = rad
-        # plot robot arrow and wheel states for this motion step
-        if environment == 'mac':
-            draw_arrow()
-            plot_wheels(unit_vec * v, w)
-            plt.pause(SEC_PER_STEP)
-    dist = np.linalg.norm(coord - end)
-    if dist > 1e-9:
-        seg(h, k)
-        # remaining motion for the final sub-step (update angle)
-        rad = float(direction)
-        dt = dist/step_size * SEC_PER_STEP
-        rad += math.radians(w) * dt
-        direction = rad
-        if environment == 'mac':
-            draw_arrow()
-            plot_wheels(unit_vec * v, w)
-            plt.pause(dt)
-    coord = end
+        time, dir, ccw = tankturnhelper(coord, direction, unit_vec)
+    for t, d in zip(time, dir):
+        direction = d
+        draw_arrow()
+        plot_wheels([0, 0], ccw * w)
+        plt.pause(t)
+    points, time, dir, unit_vec = linehelper(coord, direction, point, v, w)
+    vec = v * unit_vec
+    for pts, t, d in zip(points, time, dir):
+        simulate(vec, w, t)
+        print("distance to theoretical point: ", np.linalg.norm(pts - coord))
+        draw_arrow()
+        plot_wheels(vec, w)
+        plt.pause(t)
+
+def simulate(v, w, t):
+    global direction
+    global coord
+    speed = np.linalg.norm(v)
+    w_rad = math.radians(w)
+    if w == 0:
+        dx = v[0] * t
+        dy = v[1] * t
+    else:
+        dx = speed/w_rad * (math.sin(direction + w_rad * t) - math.sin(direction))
+        dy = speed/w_rad * (math.cos(direction) - math.cos(direction + w_rad * t))
+
+    direction += w_rad * t
+    coord += np.array([dx, dy])
