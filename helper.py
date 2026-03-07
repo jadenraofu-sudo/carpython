@@ -2,6 +2,7 @@ import numpy as np
 from config import environment, R, LX, LY, SEC_PER_STEP
 import math
 
+
 def wheelspeeds(v, w):
     wfl = 1 / R * (v[0] - v[1] - w * (LX + LY))
     wfr = 1 / R * (v[0] + v[1] + w * (LX + LY))
@@ -21,6 +22,7 @@ def wheelhelper(direction, v_world, w_deg_per_s):
     ws = wheelspeeds(v_robot, w_rad)
     return ws
 
+
 def tankturnhelper(cur, curdir, newdir, w=30.0):
     ang1 = np.rad2deg(float(curdir))
     if hasattr(newdir, '__len__') and len(newdir) == 2:
@@ -38,13 +40,19 @@ def tankturnhelper(cur, curdir, newdir, w=30.0):
     time = [SEC_PER_STEP] * numsteps
     if environment == 'mac':
         points = [cur] * numsteps
-    if abs(dir[-1] - math.radians(ang2)) > 1e-6:  # If not exactly at target angle
+    if abs(dir[-1] - math.radians(ang2)) > 1e-6:
         dir.append(math.radians(ang2))
-        time.append(abs(SEC_PER_STEP * (abs(angdiff) - abs(dir[-2] - curdir)) / turnstep))
+        time.append(abs(SEC_PER_STEP * (abs(angdiff) -
+                                        abs(dir[-2] - curdir)) / turnstep))
         if environment == 'mac':
             points.append(cur)
-    wheelspeeds_list = [wheelhelper(d, np.array((0, 0)), np.sign(angdiff) * w) for d in dir]
-    return time, dir, ccw
+    wheelspeeds_list = [wheelhelper(d, np.array((0, 0)),
+                                    np.sign(angdiff) * w) for d in dir]
+    if environment == 'mac':
+        return time, dir, ccw
+    else:
+        return wheelspeeds_list, time
+
 
 def linehelper(cur, curdir, point, v=1.0, w=0.0):
     h, k = point
@@ -55,18 +63,23 @@ def linehelper(cur, curdir, point, v=1.0, w=0.0):
     if environment == 'mac':
         points = [cur + i * step_size * unit_vec for i in range(1, numseg + 1)]
     time = [SEC_PER_STEP] * numseg
-    dir = [curdir + i * math.radians(w) * SEC_PER_STEP for i in range(1, numseg + 1)]
+    dir = [curdir + i * math.radians(w) *
+           SEC_PER_STEP for i in range(1, numseg + 1)]
     if ((cur + numseg * step_size * unit_vec) != [h, k]).any():
         dt = (dist - numseg * step_size) / v
         if environment == 'mac':
             points.append([h, k])
         time.append(dt)
-        dir.append(curdir + numseg * math.radians(w) * SEC_PER_STEP + math.radians(w) * dt)
+        dir.append(curdir + numseg * math.radians(w) *
+                   SEC_PER_STEP + math.radians(w) * dt)
     wheelspeeds_list = [wheelhelper(d, unit_vec * v, w) for d in dir]
-    return points, time, dir, unit_vec
+    if environment == 'mac':
+        return points, time, dir, unit_vec
+    else:
+        return wheelspeeds_list, time
 
 
-def semihelper(cur, curdir, point, dir, v=1.0, w=0.0, tangential = True):
+def semihelper(cur, curdir, point, dir, v=1.0, w=0.0, tangential=True):
     h, k = point
     step_size = v * SEC_PER_STEP
     radius = np.linalg.norm(cur - point) / 2
@@ -76,10 +89,12 @@ def semihelper(cur, curdir, point, dir, v=1.0, w=0.0, tangential = True):
     angchange = step_size / (radius)
     start_ang = (np.atan2(k - cur[1], h - cur[0]) + np.pi)
     if dir > 0:
-        if tangential: w = np.rad2deg(v/radius)
+        if tangential:
+            w = np.rad2deg(v/radius)
         theta = [start_ang + i * angchange for i in range(1, numseg + 1)]
-    else: 
-        if tangential: w = -np.rad2deg(v/radius)
+    else:
+        if tangential:
+            w = -np.rad2deg(v/radius)
         theta = [start_ang - i * angchange for i in range(1, numseg + 1)]
     time = [SEC_PER_STEP] * numseg
     theta.append(np.atan2(k - cur[1], h - cur[0]))
@@ -92,7 +107,12 @@ def semihelper(cur, curdir, point, dir, v=1.0, w=0.0, tangential = True):
         direction = [curdir] * len(theta)
         direction += math.radians(w) * SEC_PER_STEP
     direction = np.array(direction)
-    points = [np.array((centerx + radius * math.cos(t), centery + radius * math.sin(t))) for t in theta]
+    points = [np.array((centerx + radius * math.cos(t),
+                        centery + radius * math.sin(t))) for t in theta]
     unit_vec = np.array((tdx, tdy))
-    wheelspeeds_list = [wheelhelper(d, uv * v, w) for (d, uv) in zip(direction, unit_vec.T)]
-    return points,time, direction, unit_vec
+    wheelspeeds_list = [wheelhelper(d, uv * v, w)
+                        for (d, uv) in zip(direction, unit_vec.T)]
+    if environment == 'mac':
+        return points, time, direction, unit_vec
+    else:
+        return wheelspeeds_list, time

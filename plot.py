@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from config import environment, R, LX, LY, SEC_PER_STEP
+from config import LX, LY
 from helper import linehelper, semihelper, tankturnhelper, wheelspeeds
 
 
@@ -26,7 +26,6 @@ axd['left'].set_xlim(xbounds[0], xbounds[1])
 axd['left'].set_ylim(ybounds[0], ybounds[1])
 axd['left'].plot(1, 1)
 fig.suptitle('robot path')
-
 
 
 def plot_wheels(v_world, w_deg_per_s):
@@ -65,7 +64,7 @@ def plot_wheels(v_world, w_deg_per_s):
         # map robot-frame (x, y) -> plot-frame (-y, x) so forward (1, 0) is up
         plot_x, plot_y = -v_contact[1], v_contact[0]
         ax.quiver(0, 0, plot_x, plot_y, angles='xy', scale_units='xy',
-                scale=1, color='tab:blue', pivot='mid')
+                  scale=1, color='tab:blue', pivot='mid')
 
         # also show wheel spin magnitude (rad/s)
         ax.text(0.1, -1.2, f"{w_val:.2f} rad/s", fontsize=9)
@@ -77,34 +76,9 @@ def draw_arrow():
     axd['left'].quiver(coord[0], coord[1], dx, dy, pivot='mid', angles='xy')
 
 
-# draws an arc of radius r centered at (h, k) starting from angle start_ang
-# in the direction dir (1 for ccw, -1 for cw)
-def arc(r, h, k, start_ang, ang, dir, tangential):
-    global direction
-    global coord
-    if dir > 0:
-        theta = np.linspace(np.deg2rad(start_ang),
-                            np.deg2rad(start_ang + ang), 100)
-    else:
-        theta = np.linspace(np.deg2rad(start_ang),
-                            np.deg2rad(start_ang - ang), 100)
-    x = h + r * np.cos(theta)
-    y = k + r * np.sin(theta)
-    # tangent vector at arc end (robot frame)
-    tdx = dir * (-1 * np.sin(theta[-1]))
-    tdy = dir * (np.cos(theta[-1]))
-    if tangential:
-        direction = math.atan2(tdy, tdx)
-    coord = np.array([x[-1], y[-1]])
-    if environment == 'mac':
-        axd['left'].plot(x, y)
-    return np.array((tdx, tdy))
-
-
 # draws a semi circle between the points coord and (h, k).
 # It chooses between the two possible semicircles using dir
 def semi(point, dir, v=1.0, w=0.0, align=True, tangential=True):
-    global coord
     global direction
     point_arr = np.array(point)
     h, k = point
@@ -116,7 +90,7 @@ def semi(point, dir, v=1.0, w=0.0, align=True, tangential=True):
             w = -np.rad2deg(v/radius)
     # Align to initial tangent direction if requested
     if align:
-        start_ang = (np.atan2(k - coord[1], h - coord[0]) +  np.pi)
+        start_ang = (np.atan2(k - coord[1], h - coord[0]) + np.pi)
         new_heading = dir * np.array((-np.sin(start_ang), np.cos(start_ang)))
         time_turn, dir_turn, ccw = tankturnhelper(
             coord, direction, new_heading
@@ -140,17 +114,9 @@ def semi(point, dir, v=1.0, w=0.0, align=True, tangential=True):
         plt.pause(t)
 
 
-# draws a segment between coord and (h, k)
-def seg(h, k):
-    global coord
-    axd['left'].plot([coord[0], h], [coord[1], k])
-    coord = np.array((h, k))
-
-
 # draws lines between the points saved in corners starting at the start point
 def line(point, v=1.0, w=0.0, align=True):
     global direction
-    global coord
     unit_vec = point - coord
     unit_vec = unit_vec / np.linalg.norm(unit_vec)
     if align:
@@ -169,6 +135,7 @@ def line(point, v=1.0, w=0.0, align=True):
         plot_wheels(vec, w)
         plt.pause(t)
 
+
 def simulate(v, w, t):
     global direction
     global coord
@@ -178,8 +145,10 @@ def simulate(v, w, t):
         dx = v[0] * t
         dy = v[1] * t
     else:
-        dx = speed/w_rad * (math.sin(direction + w_rad * t) - math.sin(direction))
-        dy = speed/w_rad * (math.cos(direction) - math.cos(direction + w_rad * t))
+        dx = speed/w_rad * (math.sin(direction +
+                                     w_rad * t) - math.sin(direction))
+        dy = speed/w_rad * (math.cos(direction) -
+                            math.cos(direction + w_rad * t))
 
     direction += w_rad * t
     coord += np.array([dx, dy])
